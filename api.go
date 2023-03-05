@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 )
 
@@ -22,11 +24,11 @@ func NewApiServer(listenAddr string, stor Storage) *ApiServer{
 	}
 }
 
+// routing URL-paths using https://github.com/gorilla/mux
 func (s *ApiServer) Run(){
 	router := mux.NewRouter()
 	router.HandleFunc("/account", wrapHandler(s.handleAccount))
-	router.HandleFunc("/account/", wrapHandler(s.handleAccount))
-	router.HandleFunc("/account/{id}", wrapHandler(s.handleAccountWithParams))
+	router.HandleFunc("/account/{id}", withJWTAuth(wrapHandler(s.handleAccountWithParams)))
 	router.HandleFunc("/transfer", wrapHandler(s.handleTransfer))
 
 	log.Println("JSON-Api server running on port: ", s.listenAddr)
@@ -125,6 +127,41 @@ func WriteJSON(header http.ResponseWriter, status int, val any) error{
 	header.Header().Set("Content-Type", "application/json")
 	header.WriteHeader(status)
 	return json.NewEncoder(header).Encode(val)
+}
+
+// Middleware for Auth: using Jason-Web-Token-standard - https://jwt.io/introduction
+// jwt package from go get -u github.com/golang-jwt/jwt/v5
+func withJWTAuth(handlerFunc http.HandlerFunc) http.HandlerFunc{
+	return func(header http.ResponseWriter, r *http.Request){
+		fmt.Println("calling JWT middleware for auth")
+		
+		tokenString :=r.Header.Get("x-jwt-token")
+		_, err := validateJWT(tokenString)
+		if err != nil {
+			WriteJSON(header, http.StatusForbidden, ApiError{Error: "no access - invalid token"})
+			return 
+		}
+
+
+		handlerFunc(header, r)
+	}
+}
+
+//const jwtSecret = "qwert123"
+// in terminal for testing  $ export JWT_SECRET=qwert123
+
+// validation happens here
+func validateJWT(tokenString string)(*jwt.Token, error){
+	secret := os.Getenv("JWT_SECRET")
+	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+	
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(secret), nil
+	})
 }
 
 type apiFunction func(http.ResponseWriter, *http.Request) error
