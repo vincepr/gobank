@@ -9,3 +9,7 @@
 - once created start the container with : `sudo docker start some-postgres`
 
 - stop and remove: `sudo docker stop some-postgres && sudo docker rm -f some-postgres`
+
+## auth
+- bcrypt to encrypt passwords: `golang.org/x/crypto/bcrypt`
+- jwt-web-token standard using `github.com/golang-jwt/jwt/v5` for access/auth

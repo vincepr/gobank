@@ -27,12 +27,24 @@ func NewApiServer(listenAddr string, stor Storage) *ApiServer{
 // routing URL-paths using https://github.com/gorilla/mux
 func (s *ApiServer) Run(){
 	router := mux.NewRouter()
+	router.HandleFunc("/login", wrapHandler(s.handleLogin))
 	router.HandleFunc("/account", wrapHandler(s.handleAccount))
 	router.HandleFunc("/account/{id}", withJWTAuth(wrapHandler(s.handleAccountWithParams), s.storage))
 	router.HandleFunc("/transfer", wrapHandler(s.handleTransfer))
 
 	log.Println("JSON-Api server running on port: ", s.listenAddr)
 	http.ListenAndServe(s.listenAddr, router)
+}
+
+/**
+* login HANDLERS 
+*/
+func (s *ApiServer) handleLogin(header http.ResponseWriter,r *http.Request) error{
+	var request LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil{
+		return err
+	}
+	return WriteJSON(header, http.StatusOK, request)
 }
 
 /**
@@ -87,7 +99,10 @@ func (s *ApiServer) handleCreateAccount(header http.ResponseWriter,r *http.Reque
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil{
 		return err
 	}
-	account := NewAccount(request.FirstName, request.LastName)
+	account, err := NewAccount(request.FirstName, request.LastName, request.Password)
+	if err != nil{ 
+		return err
+	}
 	// try pushing that full-valid acount data into the db
 	if err := s.storage.CreateAccount(account);err != nil{
 		return err
