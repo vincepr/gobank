@@ -20,7 +20,7 @@ type Storage interface {
 }
 
 /**
-* PostgressStore as one db implementation of a Storage. (created by dockerfile, check README.md)
+* PostgressStore as one db implementation of a Storage. (runs in docker, check README.md)
 */
 type PostgresStore struct{
 	db *sql.DB
@@ -47,7 +47,7 @@ func (st *PostgresStore) Init() error{
 func (st *PostgresStore) createAccountTable() error{
 	sqlStatement := `
 
-	drop table account;
+	drop table IF EXISTS account;
 
 	create table if not exists account (
 		id serial PRIMARY KEY,
@@ -66,15 +66,15 @@ func (st *PostgresStore) CreateAccount(a *Account) error{
 	sqlStatement := `
 	INSERT INTO account (first_name, last_name, number, balance, created_at)
 	VALUES ($1, $2, $3, $4, $5);`
-	response, err := st.db.Query(
+	_, err := st.db.Query(
 		sqlStatement, 
 		a.FirstName, a.LastName, a.Number, a.Balance, a.CreatedAt,
 	)
 	if err != nil{
 		return err
 	}
-	fmt.Printf("USER-CREATED: %+v \n", response)
-	return nil
+	//fmt.Printf("USER-CREATED: %+v \n", response)
+	return err
 }
 
 func (st *PostgresStore) UpdateAccount(*Account) error{

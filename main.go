@@ -15,7 +15,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server := NewApiServer(":3000", store)
+	server := NewApiServer(":5555", store)
 	server.Run()
 	fmt.Println("Yeah running")
 }

@@ -175,7 +175,7 @@ type ApiError struct{
 func wrapHandler(f apiFunction) http.HandlerFunc{
 	return func(header http.ResponseWriter, r *http.Request){
 		if err := f(header, r); err != nil{
-			// :todo handle error here
+			// :todo handle error here properly
 			WriteJSON(header, http.StatusBadRequest, ApiError{Error: err.Error()})
 		}
 	}
