@@ -81,8 +81,6 @@ func (s *ApiServer) handleAccount(header http.ResponseWriter, r *http.Request) e
 		return s.handleGetAccountsAll(header, r)
 	case "POST":
 		return s.handleCreateAccount(header, r)
-	case "DELETE":
-		return s.handleDeleteAccount(header, r)
 	}
 	return fmt.Errorf("method not supported: %s", r.Method)
 } 
@@ -90,8 +88,6 @@ func (s *ApiServer) handleAccountWithParams(header http.ResponseWriter, r *http.
 	switch r.Method{
 	case "GET":
 		return s.handleGetAccountById(header, r)
-	case "POST":
-		return s.handleCreateAccount(header, r)
 	case "DELETE":
 		return s.handleDeleteAccount(header, r)
 	}
@@ -128,17 +124,19 @@ func (s *ApiServer) handleCreateAccount(header http.ResponseWriter, r *http.Requ
 	if err != nil{ 
 		return err
 	}
-	// try pushing that full-valid acount data into the db
+	// try pushing that valid acount data into the db
 	if err := s.storage.CreateAccount(account);err != nil{
 		return err
 	}
 
-	// create a jwt token for further identification & auth
+	/*-lets just have the user login after creating an account, some validation might have to happen.
+	// create a jwt token for further identification & auth so we can be logged in from the get-go
 	tokenString, err :=createJwtToken(account)
 	fmt.Println("JWT token:",tokenString)
 	if err != nil{
 		return err
 	}
+	*/
 
 	return WriteJSON(header, http.StatusOK, account)
 } 

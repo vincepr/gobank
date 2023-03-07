@@ -41,7 +41,6 @@ type Account struct {
 
 func NewAccount(firstName, lastName, password string) (*Account, error){
 
-
 	encPw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil{
 		return nil, err
@@ -52,7 +51,7 @@ func NewAccount(firstName, lastName, password string) (*Account, error){
 		//Id		// using databse autoincrement(in postgres serial)
 		FirstName: firstName,
 		LastName: lastName,
-		Number: int64(rand.Intn(9999999)),
+		Number: int64(rand.Intn(9999999)),													// :todo make sure this is unique at some point
 		PasswordEnc: string(encPw),
 		// Balance : 0 	//-> no need to specify this implicit because default is 0
 		CreatedAt: time.Now().UTC(),

@@ -67,15 +67,24 @@ func (st *PostgresStore) createAccountTable() error{
 func (st *PostgresStore) CreateAccount(a *Account) error{
 	sqlStatement := `
 	INSERT INTO account (first_name, last_name, number, password_encrypted ,balance, created_at)
-	VALUES ($1, $2, $3, $4, $5, $6);`
-	_, err := st.db.Query(
+	VALUES ($1, $2, $3, $4, $5, $6)
+	RETURNING id;`
+	response, err := st.db.Query(
 		sqlStatement, 
 		a.FirstName, a.LastName, a.Number, a.PasswordEnc, a.Balance, a.CreatedAt,
 	)
 	if err != nil{
 		return err
 	}
-	//fmt.Printf("USER-CREATED: %+v \n", response)
+	// check response for the Id (RETURNING id)
+	for response.Next(){
+		var userId int
+		err = response.Scan(&userId)
+		if err != nil{
+			return err
+		}
+		a.Id = userId		// insert id (from default= 0) in the account-pointer.
+	}
 	return err
 }
 
@@ -124,6 +133,7 @@ func (st *PostgresStore) GetAccountByNumber(id int64) (*Account, error){
 	return nil, fmt.Errorf("account %d not found.", id)
 }
 
+// admin functionality only
 func (st *PostgresStore) GetAccountsAll() ([]*Account, error){
 	rows, err := st.db.Query("SELECT * FROM account")
 	if err != nil {
