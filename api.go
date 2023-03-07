@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type ApiServer struct{
@@ -39,18 +40,42 @@ func (s *ApiServer) Run(){
 /**
 * login HANDLERS 
 */
-func (s *ApiServer) handleLogin(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleLogin(header http.ResponseWriter, r *http.Request) error{
 	var request LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil{
 		return err
 	}
-	return WriteJSON(header, http.StatusOK, request)
+
+	account, err := s.storage.GetAccountByNumber(request.Number)
+	if err != nil{
+		return fmt.Errorf("account/password incorrect")
+	}
+
+	// check if password is correct? err = nil if so:
+	err = bcrypt.CompareHashAndPassword([]byte(account.PasswordEnc), []byte(request.Password))
+	if err != nil{
+		return fmt.Errorf("account/password incorrect")
+	}
+	// create a new token for the users-session
+	jwtToken, err := createJwtToken(account)
+	if err != nil{
+		return err
+	}
+	
+	response :=  LoginResponseSuccess{
+		Id: account.Id,
+		Number: request.Number,
+		JWTToken: jwtToken,
+	}
+	
+
+	return WriteJSON(header, http.StatusOK, response)
 }
 
 /**
 * account HANDLERS 
 */
-func (s *ApiServer) handleAccount(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleAccount(header http.ResponseWriter, r *http.Request) error{
 	switch r.Method{
 	case "GET":
 		return s.handleGetAccountsAll(header, r)
@@ -61,7 +86,7 @@ func (s *ApiServer) handleAccount(header http.ResponseWriter,r *http.Request) er
 	}
 	return fmt.Errorf("method not supported: %s", r.Method)
 } 
-func (s *ApiServer) handleAccountWithParams(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleAccountWithParams(header http.ResponseWriter, r *http.Request) error{
 	switch r.Method{
 	case "GET":
 		return s.handleGetAccountById(header, r)
@@ -73,7 +98,7 @@ func (s *ApiServer) handleAccountWithParams(header http.ResponseWriter,r *http.R
 	return fmt.Errorf("method not supported: %s", r.Method)
 }
 
-func (s *ApiServer) handleGetAccountById(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleGetAccountById(header http.ResponseWriter, r *http.Request) error{
 	idInt, err := paramsToId(r)
 	if err != nil{
 		return err
@@ -85,7 +110,7 @@ func (s *ApiServer) handleGetAccountById(header http.ResponseWriter,r *http.Requ
 	return WriteJSON(header, http.StatusOK, account)
 } 
 
-func (s *ApiServer) handleGetAccountsAll(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleGetAccountsAll(header http.ResponseWriter, r *http.Request) error{
 	accounts, err := s.storage.GetAccountsAll()
 	if err != nil{
 		return err
@@ -93,7 +118,7 @@ func (s *ApiServer) handleGetAccountsAll(header http.ResponseWriter,r *http.Requ
 	return WriteJSON(header, http.StatusOK, accounts)
 } 
 
-func (s *ApiServer) handleCreateAccount(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleCreateAccount(header http.ResponseWriter, r *http.Request) error{
 	// joink names from request and create a new account-struct with it
 	request := &CreateAccountRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil{
@@ -107,6 +132,7 @@ func (s *ApiServer) handleCreateAccount(header http.ResponseWriter,r *http.Reque
 	if err := s.storage.CreateAccount(account);err != nil{
 		return err
 	}
+
 	// create a jwt token for further identification & auth
 	tokenString, err :=createJwtToken(account)
 	fmt.Println("JWT token:",tokenString)
@@ -114,12 +140,10 @@ func (s *ApiServer) handleCreateAccount(header http.ResponseWriter,r *http.Reque
 		return err
 	}
 
-
-
 	return WriteJSON(header, http.StatusOK, account)
 } 
 
-func (s *ApiServer) handleDeleteAccount(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleDeleteAccount(header http.ResponseWriter, r *http.Request) error{
 	//_, err := s.storage.DeleteAccount(id)
 	id, err := paramsToId(r)
 	if err != nil{
@@ -134,7 +158,7 @@ func (s *ApiServer) handleDeleteAccount(header http.ResponseWriter,r *http.Reque
 /** 
 * money-transaction HANDLERS 
 */
-func (s *ApiServer) handleTransfer(header http.ResponseWriter,r *http.Request) error{
+func (s *ApiServer) handleTransfer(header http.ResponseWriter, r *http.Request) error{
 	trReq := &TransferRequest{}
 	if err := json.NewDecoder(r.Body).Decode(trReq); err != nil{
 		return err
