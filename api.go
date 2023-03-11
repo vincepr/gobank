@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -38,43 +39,41 @@ func (s *ApiServer) Run(){
 }
 
 /**
-* login HANDLERS 
+* 	/login HANDLER 
 */
+
 func (s *ApiServer) handleLogin(header http.ResponseWriter, r *http.Request) error{
 	var request LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil{
 		return err
 	}
-
+	// check if account exist?
 	account, err := s.storage.GetAccountByIban(request.Iban)
 	if err != nil{
 		return fmt.Errorf("account/password incorrect")
 	}
-
-	// check if password is correct? err = nil if so:
+	// check if password is correct?
 	err = bcrypt.CompareHashAndPassword([]byte(account.PasswordEnc), []byte(request.Password))
 	if err != nil{
 		return fmt.Errorf("account/password incorrect")
 	}
 	// create a new token for the users-session
-	jwtToken, err := createJwtToken(account)
+	jwtToken, err := createJWTToken(account.Id ,account.Iban, account.IsAdmin)
 	if err != nil{
 		return err
 	}
-	
 	response :=  LoginResponseSuccess{
 		Id: account.Id,
 		Iban: request.Iban,
 		JWTToken: jwtToken,
 	}
-	
-
 	return WriteJSON(header, http.StatusOK, response)
 }
 
 /**
-* account HANDLERS 
+* 	/account and /account/{id} HANDLERS 
 */
+
 func (s *ApiServer) handleAccount(header http.ResponseWriter, r *http.Request) error{
 	switch r.Method{
 	case "GET":
@@ -84,6 +83,7 @@ func (s *ApiServer) handleAccount(header http.ResponseWriter, r *http.Request) e
 	}
 	return fmt.Errorf("method not supported: %s", r.Method)
 } 
+
 func (s *ApiServer) handleAccountWithParams(header http.ResponseWriter, r *http.Request) error{
 	switch r.Method{
 	case "GET":
@@ -153,6 +153,7 @@ func (s *ApiServer) handleDeleteAccount(header http.ResponseWriter, r *http.Requ
 	return WriteJSON(header, http.StatusOK, map[string]int{"deleted": id})
 } 
 
+
 /** 
 * money-transaction HANDLERS 
 */
@@ -166,6 +167,7 @@ func (s *ApiServer) handleTransfer(header http.ResponseWriter, r *http.Request) 
 	return WriteJSON(header, http.StatusOK, trReq)
 }
 
+
 /** 
 * HELPER- functions: 
 */
@@ -173,100 +175,6 @@ func WriteJSON(header http.ResponseWriter, status int, val any) error{
 	header.Header().Set("Content-Type", "application/json")
 	header.WriteHeader(status)
 	return json.NewEncoder(header).Encode(val)
-}
-
-// Middleware for Auth: using Jason-Web-Token-standard - https://jwt.io/introduction
-// jwt package from go get -u github.com/golang-jwt/jwt/v5
-func middlewareJWTAuth(handlerFunc http.HandlerFunc, storage Storage) http.HandlerFunc{
-	return func(header http.ResponseWriter, r *http.Request){
-		// check if there is ANY valid token:
-		tokenString :=r.Header.Get("x-jwt-token")
-		token, err := validateJWT(tokenString)					
-		if (err != nil || !token.Valid) {
-			WriteJSON(header, http.StatusForbidden, ApiError{Error: "invalid token"})
-			return 
-		}
-		// identify user-nr that is beeing acessed
-		userId, err := paramsToId(r)
-		if (err != nil || !token.Valid) {
-			WriteJSON(header, http.StatusForbidden, ApiError{Error: "invalid token"})
-			return 
-		}
-		// grab that nr's data from the database
-		account, err := storage.GetAccountById(userId)
-		if (err != nil || !token.Valid) {
-			WriteJSON(header, http.StatusForbidden, ApiError{Error: "invalid token"})
-			return 
-		}
-		// check if the claims of the token fit the user-> user accessing his own data
-		claims := token.Claims.(jwt.MapClaims)
-		claimedNr := strconv.Itoa(int(claims["accountNumber"].(float64)))	// comes out float64 out... 
-		//... of the interface->cast it as int with float64 type assertion :todo rewrite with jwt map
-		if account.Iban !=  claimedNr{
-			WriteJSON(header, http.StatusForbidden, ApiError{Error: "invalid token"})
-			return 
-		}
-
-		handlerFunc(header, r)
-	}
-}
-
-// validation happens here
-func validateJWT(tokenString string)(*jwt.Token, error){
-	//secret := os.Getenv("JWT_SECRET")	// in terminal for testing  $ export JWT_SECRET=qwert123
-	secret := "SecretGoesBrrrrr"
-	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-	
-		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
-		return []byte(secret), nil
-	})
-}
-
-// creates a individual token to validate account users
-func createJwtToken(account *Account)(string, error){
-	/*
-	mySigningKey := []byte("SecretGoesBrrrrr")
-
-	// Create the Claims
-	claims := &jwt.MapClaims{
-		"expiresAt": jwt.NewNumericDate(time.Unix(1516239022, 0)),
-		"accountNumber": account.Iban,
-		"issuer":    "gobank",
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	// Parse the token
-	*/
-
-	// token NEW
-	mySigningKey:= []byte("SecretGoesBrrrrr")
-
-	// Create the Claims
-	claims := &jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(20 * time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		NotBefore: jwt.NewNumericDate(time.Now()),
-		Issuer:    "gobank",
-		ID:			account.Iban,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	ss, err := token.SignedString(mySigningKey)
-	fmt.Printf("%v %v", ss, err)
-	
-
-
-
-
-
-
-
-
-	return token.SignedString(mySigningKey)
 }
 
 type apiFunction func(http.ResponseWriter, *http.Request) error
@@ -294,4 +202,113 @@ func paramsToId(r *http.Request) (int, error){
 		return idInt, fmt.Errorf("invalid id given: %s", params)
 	}
 	return idInt, err
+}
+
+
+
+
+/*
+*
+*	JSON WEB TOKEN - Auth 	:todo exlude this to a module
+*
+*/
+
+
+
+// Middleware for Auth: using Jason-Web-Token-standard - https://jwt.io/introduction
+// jwt package from go get -u github.com/golang-jwt/jwt/v5
+func middlewareJWTAuth(handlerFunc http.HandlerFunc, storage Storage) http.HandlerFunc{
+	return func(header http.ResponseWriter, r *http.Request){
+		// Default Error msg, so no info about if a account exists can be gathered
+		writeJSONError := func(){
+			WriteJSON(header, http.StatusForbidden, ApiError{Error: "invalid token"})
+		}
+		// check if there is ANY valid token:
+		tokenString :=r.Header.Get("x-jwt-token")
+		claims, err := validateJWTClaims(tokenString)					
+		if (err != nil) {
+			writeJSONError()
+			return 
+		}
+		// identify user-nr that is beeing acessed from url {id}
+		userId, err := paramsToId(r)
+		if (err != nil) {
+			writeJSONError()
+			return 
+		}
+		// grab that nr's data from the database
+		account, err := storage.GetAccountById(userId)
+		if (err != nil) {
+			writeJSONError()
+			return 
+		}
+		// check if the claims of the token fit the user-> user accessing his own data
+		claimedNr := claims.Iban
+		if account.Iban !=  claimedNr{
+			writeJSONError()
+			return 
+		}
+
+		handlerFunc(header, r)
+		
+	}
+}
+
+
+// Claims from a Token, stores who the user is, what he can access and or and for how long 
+type JWTClaims struct {
+	Id int		`json:"id"`
+	Iban string `json:"iban"`
+	IsAdmin bool `json:"isAdmin"`
+	jwt.RegisteredClaims
+}
+
+func NewJWTClaims(id int, iban string, isAdmin  bool) JWTClaims{
+	return JWTClaims{
+		Iban: iban,
+		IsAdmin: isAdmin,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(18 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+			Issuer:    "go-Auth",
+			//Subject:   "somebody",
+			//ID:        "1",
+			//Audience:  []string{"somebody_else"},
+		},
+	}
+}
+
+// creates a Token to pass to our Users after ex. Login
+func createJWTToken(id int, iban string, isAdmin bool) (string, error){
+	mySigningKey := keyFromEnvForJWT()
+	claims := NewJWTClaims(id, iban, isAdmin)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(mySigningKey)
+}
+
+// validation happens here, returns our claims
+func validateJWTClaims(tokenString string) (*JWTClaims, error){
+	mySigningKey := keyFromEnvForJWT()
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {	// Validate the encrypt-Algorythm is the one what we expect 
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(mySigningKey), nil
+	})
+	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		return claims, nil
+	} else {
+		return nil, err
+	}
+}
+
+// read the Secret-Key we use for encryption from env.
+func keyFromEnvForJWT() []byte{
+	key := os.Getenv("JWT_KEY")
+	if key == "" {
+		key = "DefaultSecretGoesBrrr"
+		fmt.Println("Remainder - Dont forget to set your key, example $ export JWT_KEY=bhJas5_Sk-7El3VuCx7QerFuFS.Ns7bKBiJ_4O3deoZw")
+	}
+	return []byte(key)
 }

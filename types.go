@@ -20,7 +20,7 @@ type LoginRequest struct{
 
 type LoginResponseSuccess struct{
 	Id 			int		`json:"id"`
-	Iban		string	`json:"iban"`
+	Iban		string	`json:"iban"`			// :todo remove from here unneccessary exposure since token stores it anyway
 	JWTToken	string	`json:"x-jwt-token"`
 }
 
@@ -34,6 +34,7 @@ type Account struct {
 	Id 			int		`json:"id"`			//rename 'ID' -> 'id' in returned JSON
 	FirstName 	string	`json:"firstName"`
 	LastName 	string	`json:"lastName"`
+	IsAdmin		bool	`json:"isAdmin"`
 	Iban 		string	`json:"iban"`
 	PasswordEnc string	`json:"-"`			// `json:"-"` THIS WILL NOT GET "JSON-ed" !
 	Balance 	int64	`json:"balance"`
@@ -51,12 +52,13 @@ func NewAccount(firstName, lastName, password string) (*Account, error){
 	//fmt.Println("PASSWORD-Plain:", password, "PASSWORD-encrypted:", encPw)
 
 	return &Account{
-		//Id		// using databse autoincrement(in postgres serial)
+		//Id				// using databse autoincrement(in postgres serial)
 		FirstName: firstName,
 		LastName: lastName,
+		IsAdmin: false,		// should be default false but why risk it
 		Iban: "DE-"+strconv.Itoa(rand.Intn(99999)),													// :todo make sure this is unique at some point
 		PasswordEnc: string(encPw),
-		// Balance : 0 	//-> no need to specify this implicit because default is 0
+		// Balance : 0 		//-> no need to specify this implicit because default is 0
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }
