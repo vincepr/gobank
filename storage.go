@@ -17,7 +17,7 @@ type Storage interface {
 	DeleteAccount(int) error
 	GetAccountById(int) (*Account, error)
 	GetAccountsAll() ([]*Account, error)
-	GetAccountByNumber(int64) (*Account, error)
+	GetAccountByIban(string) (*Account, error)
 }
 
 /**
@@ -54,7 +54,7 @@ func (st *PostgresStore) createAccountTable() error{
 		id serial PRIMARY KEY,
 		first_name varchar(50) NOT NULL,
 		last_name varchar(50) NOT NULL,
-		number bigint,
+		iban varchar(50),
 		password_encrypted varchar(73),
 		balance real,
 		created_at timestamp
@@ -66,12 +66,12 @@ func (st *PostgresStore) createAccountTable() error{
 
 func (st *PostgresStore) CreateAccount(a *Account) error{
 	sqlStatement := `
-	INSERT INTO account (first_name, last_name, number, password_encrypted ,balance, created_at)
+	INSERT INTO account (first_name, last_name, iban, password_encrypted ,balance, created_at)
 	VALUES ($1, $2, $3, $4, $5, $6)
 	RETURNING id;`
 	response, err := st.db.Query(
 		sqlStatement, 
-		a.FirstName, a.LastName, a.Number, a.PasswordEnc, a.Balance, a.CreatedAt,
+		a.FirstName, a.LastName, a.Iban, a.PasswordEnc, a.Balance, a.CreatedAt,
 	)
 	if err != nil{
 		return err
@@ -116,13 +116,13 @@ func (st *PostgresStore) GetAccountById(id int) (*Account, error){
 	return nil, fmt.Errorf("account %d not found.", id)
 }
 
-// Number is something like a isbn 
-func (st *PostgresStore) GetAccountByNumber(id int64) (*Account, error){
+// iban is something like a iban 
+func (st *PostgresStore) GetAccountByIban(iban string) (*Account, error){
 	sqlStatement := `
 	SELECT * FROM account
-	WHERE number = $1`
+	WHERE iban = $1`
 	
-	rows, err := st.db.Query(sqlStatement, id)
+	rows, err := st.db.Query(sqlStatement, iban)
 	if err != nil{
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (st *PostgresStore) GetAccountByNumber(id int64) (*Account, error){
 	for rows.Next(){
 		return fromSqlReadAccount(rows)
 	}
-	return nil, fmt.Errorf("account %d not found.", id)
+	return nil, fmt.Errorf("account %d not found.", iban)
 }
 
 // admin functionality only
@@ -157,7 +157,7 @@ func fromSqlReadAccount(rows *sql.Rows) (*Account, error){
 		&account.Id, 
 		&account.FirstName, 
 		&account.LastName, 
-		&account.Number,
+		&account.Iban,
 		&account.PasswordEnc, 
 		&account.Balance, 
 		&account.CreatedAt,

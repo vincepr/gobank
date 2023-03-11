@@ -2,25 +2,26 @@ package main
 
 import (
 	"math/rand"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
+type TransferRequest struct{
+	ToAccount 	string	`json:"toAccount"`
+	Ammount 	int	`json:"ammount"`
+}
+
 type LoginRequest struct{
-	Number 		int64 	`json:"iban"`
+	Iban 		string 	`json:"iban"`
 	Password 	string 	`json:"password"`
 }
 
 type LoginResponseSuccess struct{
 	Id 			int		`json:"id"`
-	Number		int64	`json:"iban"`
+	Iban		string	`json:"iban"`
 	JWTToken	string	`json:"x-jwt-token"`
-}
-
-type TransferRequest struct{
-	ToAccount 	int	`json:"toAccount"`
-	Ammount 	int	`json:"ammount"`
 }
 
 type CreateAccountRequest struct{
@@ -33,11 +34,13 @@ type Account struct {
 	Id 			int		`json:"id"`			//rename 'ID' -> 'id' in returned JSON
 	FirstName 	string	`json:"firstName"`
 	LastName 	string	`json:"lastName"`
-	Number 		int64	`json:"iban"`
+	Iban 		string	`json:"iban"`
 	PasswordEnc string	`json:"-"`			// `json:"-"` THIS WILL NOT GET "JSON-ed" !
 	Balance 	int64	`json:"balance"`
 	CreatedAt 	time.Time `json:"createdAt"`
 }
+
+
 
 func NewAccount(firstName, lastName, password string) (*Account, error){
 
@@ -51,7 +54,7 @@ func NewAccount(firstName, lastName, password string) (*Account, error){
 		//Id		// using databse autoincrement(in postgres serial)
 		FirstName: firstName,
 		LastName: lastName,
-		Number: int64(rand.Intn(9999999)),													// :todo make sure this is unique at some point
+		Iban: "DE-"+strconv.Itoa(rand.Intn(99999)),													// :todo make sure this is unique at some point
 		PasswordEnc: string(encPw),
 		// Balance : 0 	//-> no need to specify this implicit because default is 0
 		CreatedAt: time.Now().UTC(),

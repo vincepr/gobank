@@ -30,7 +30,7 @@ func (s *ApiServer) Run(){
 	router := mux.NewRouter()
 	router.HandleFunc("/login", wrapHandler(s.handleLogin))
 	router.HandleFunc("/account", wrapHandler(s.handleAccount))
-	router.HandleFunc("/account/{id}", withJWTAuth(wrapHandler(s.handleAccountWithParams), s.storage))
+	router.HandleFunc("/account/{id}", middlewareJWTAuth(wrapHandler(s.handleAccountWithParams), s.storage))
 	router.HandleFunc("/transfer", wrapHandler(s.handleTransfer))
 
 	log.Println("JSON-Api server running on port: ", s.listenAddr)
@@ -46,7 +46,7 @@ func (s *ApiServer) handleLogin(header http.ResponseWriter, r *http.Request) err
 		return err
 	}
 
-	account, err := s.storage.GetAccountByNumber(request.Number)
+	account, err := s.storage.GetAccountByIban(request.Iban)
 	if err != nil{
 		return fmt.Errorf("account/password incorrect")
 	}
@@ -64,7 +64,7 @@ func (s *ApiServer) handleLogin(header http.ResponseWriter, r *http.Request) err
 	
 	response :=  LoginResponseSuccess{
 		Id: account.Id,
-		Number: request.Number,
+		Iban: request.Iban,
 		JWTToken: jwtToken,
 	}
 	
@@ -177,7 +177,7 @@ func WriteJSON(header http.ResponseWriter, status int, val any) error{
 
 // Middleware for Auth: using Jason-Web-Token-standard - https://jwt.io/introduction
 // jwt package from go get -u github.com/golang-jwt/jwt/v5
-func withJWTAuth(handlerFunc http.HandlerFunc, storage Storage) http.HandlerFunc{
+func middlewareJWTAuth(handlerFunc http.HandlerFunc, storage Storage) http.HandlerFunc{
 	return func(header http.ResponseWriter, r *http.Request){
 		// check if there is ANY valid token:
 		tokenString :=r.Header.Get("x-jwt-token")
@@ -200,9 +200,9 @@ func withJWTAuth(handlerFunc http.HandlerFunc, storage Storage) http.HandlerFunc
 		}
 		// check if the claims of the token fit the user-> user accessing his own data
 		claims := token.Claims.(jwt.MapClaims)
-		claimedNr := int64(claims["accountNumber"].(float64))	// comes out float64 out... 
+		claimedNr := strconv.Itoa(int(claims["accountNumber"].(float64)))	// comes out float64 out... 
 		//... of the interface->cast it as int with float64 type assertion :todo rewrite with jwt map
-		if account.Number !=  claimedNr{
+		if account.Iban !=  claimedNr{
 			WriteJSON(header, http.StatusForbidden, ApiError{Error: "invalid token"})
 			return 
 		}
@@ -228,16 +228,44 @@ func validateJWT(tokenString string)(*jwt.Token, error){
 
 // creates a individual token to validate account users
 func createJwtToken(account *Account)(string, error){
+	/*
 	mySigningKey := []byte("SecretGoesBrrrrr")
 
 	// Create the Claims
 	claims := &jwt.MapClaims{
 		"expiresAt": jwt.NewNumericDate(time.Unix(1516239022, 0)),
-		"accountNumber": account.Number,
+		"accountNumber": account.Iban,
 		"issuer":    "gobank",
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// Parse the token
+	*/
+
+	// token NEW
+	mySigningKey:= []byte("SecretGoesBrrrrr")
+
+	// Create the Claims
+	claims := &jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(20 * time.Hour)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		NotBefore: jwt.NewNumericDate(time.Now()),
+		Issuer:    "gobank",
+		ID:			account.Iban,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := token.SignedString(mySigningKey)
+	fmt.Printf("%v %v", ss, err)
+	
+
+
+
+
+
+
+
+
 	return token.SignedString(mySigningKey)
 }
 
