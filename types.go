@@ -2,18 +2,26 @@ package main
 
 import (
 	"math/rand"
+	"strconv"
 	"time"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
+type TransferRequest struct{
+	ToAccount 	string	`json:"toAccount"`
+	Ammount 	int	`json:"ammount"`
+}
+
 type LoginRequest struct{
-	Number 		int64 	`json:"number"`
+	Iban 		string 	`json:"iban"`
 	Password 	string 	`json:"password"`
 }
 
-type TransferRequest struct{
-	ToAccount 	int	`json:"toAccount"`
-	Ammount 	int	`json:"ammount"`
+type LoginResponseSuccess struct{
+	Id 			int		`json:"id"`
+	Iban		string	`json:"iban"`			// :todo remove from here unneccessary exposure since token stores it anyway
+	JWTToken	string	`json:"x-jwt-token"`
 }
 
 type CreateAccountRequest struct{
@@ -26,27 +34,31 @@ type Account struct {
 	Id 			int		`json:"id"`			//rename 'ID' -> 'id' in returned JSON
 	FirstName 	string	`json:"firstName"`
 	LastName 	string	`json:"lastName"`
-	Number 		int64	`json:"iban"`
-	PasswordEnc string	`json:"-"`
+	IsAdmin		bool	`json:"isAdmin"`
+	Iban 		string	`json:"iban"`
+	PasswordEnc string	`json:"-"`			// `json:"-"` THIS WILL NOT GET "JSON-ed" !
 	Balance 	int64	`json:"balance"`
 	CreatedAt 	time.Time `json:"createdAt"`
 }
 
-func NewAccount(firstName, lastName, password string) (*Account, error){
 
+
+func NewAccount(firstName, lastName, password string) (*Account, error){
 
 	encPw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil{
 		return nil, err
 	}
+	//fmt.Println("PASSWORD-Plain:", password, "PASSWORD-encrypted:", encPw)
 
 	return &Account{
-		//Id		// using databse autoincrement(in postgres serial)
+		//Id				// using databse autoincrement(in postgres serial)
 		FirstName: firstName,
 		LastName: lastName,
+		IsAdmin: false,		// should be default false but why risk it
+		Iban: "DE-"+strconv.Itoa(rand.Intn(99999)),													// :todo make sure this is unique at some point
 		PasswordEnc: string(encPw),
-		Number: int64(rand.Intn(9999999)),
-		// Balance : 0 	//-> no need to specify this implicit because default is 0
+		// Balance : 0 		//-> no need to specify this implicit because default is 0
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }

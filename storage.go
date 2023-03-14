@@ -17,6 +17,7 @@ type Storage interface {
 	DeleteAccount(int) error
 	GetAccountById(int) (*Account, error)
 	GetAccountsAll() ([]*Account, error)
+	GetAccountByIban(string) (*Account, error)
 }
 
 /**
@@ -53,7 +54,8 @@ func (st *PostgresStore) createAccountTable() error{
 		id serial PRIMARY KEY,
 		first_name varchar(50) NOT NULL,
 		last_name varchar(50) NOT NULL,
-		number varchar(50),
+		iban varchar(50),
+		password_encrypted varchar(73),
 		balance real,
 		created_at timestamp
 	);`
@@ -64,16 +66,25 @@ func (st *PostgresStore) createAccountTable() error{
 
 func (st *PostgresStore) CreateAccount(a *Account) error{
 	sqlStatement := `
-	INSERT INTO account (first_name, last_name, number, balance, created_at)
-	VALUES ($1, $2, $3, $4, $5);`
-	_, err := st.db.Query(
+	INSERT INTO account (first_name, last_name, iban, password_encrypted ,balance, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6)
+	RETURNING id;`
+	response, err := st.db.Query(
 		sqlStatement, 
-		a.FirstName, a.LastName, a.Number, a.Balance, a.CreatedAt,
+		a.FirstName, a.LastName, a.Iban, a.PasswordEnc, a.Balance, a.CreatedAt,
 	)
 	if err != nil{
 		return err
 	}
-	//fmt.Printf("USER-CREATED: %+v \n", response)
+	// check response for the Id (RETURNING id)
+	for response.Next(){
+		var userId int
+		err = response.Scan(&userId)
+		if err != nil{
+			return err
+		}
+		a.Id = userId		// insert id (from default= 0) in the account-pointer.
+	}
 	return err
 }
 
@@ -105,6 +116,24 @@ func (st *PostgresStore) GetAccountById(id int) (*Account, error){
 	return nil, fmt.Errorf("account %d not found.", id)
 }
 
+// iban is something like a iban 
+func (st *PostgresStore) GetAccountByIban(iban string) (*Account, error){
+	sqlStatement := `
+	SELECT * FROM account
+	WHERE iban = $1`
+	
+	rows, err := st.db.Query(sqlStatement, iban)
+	if err != nil{
+		return nil, err
+	}
+
+	for rows.Next(){
+		return fromSqlReadAccount(rows)
+	}
+	return nil, fmt.Errorf("account %d not found.", iban)
+}
+
+// admin functionality only
 func (st *PostgresStore) GetAccountsAll() ([]*Account, error){
 	rows, err := st.db.Query("SELECT * FROM account")
 	if err != nil {
@@ -128,7 +157,8 @@ func fromSqlReadAccount(rows *sql.Rows) (*Account, error){
 		&account.Id, 
 		&account.FirstName, 
 		&account.LastName, 
-		&account.Number, 
+		&account.Iban,
+		&account.PasswordEnc, 
 		&account.Balance, 
 		&account.CreatedAt,
 	)

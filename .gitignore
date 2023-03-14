@@ -19,3 +19,5 @@
 
 # bin folder we create our binaries into
 bin/
+
+# Local Environment File, we use to store our JWT_KEY into
