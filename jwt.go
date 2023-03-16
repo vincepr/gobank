@@ -11,7 +11,7 @@ import (
 
 /*
 *
-*	JSON WEB TOKEN - Auth 	:todo exlude this to a module
+*	JSON WEB TOKEN - Auth
 *
  */
 
