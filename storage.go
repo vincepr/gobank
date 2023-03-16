@@ -130,7 +130,7 @@ func (st *PostgresStore) GetAccountByIban(iban string) (*Account, error){
 	for rows.Next(){
 		return fromSqlReadAccount(rows)
 	}
-	return nil, fmt.Errorf("account %d not found.", iban)
+	return nil, fmt.Errorf("account %s not found. ", iban)
 }
 
 // admin functionality only
